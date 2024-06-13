@@ -252,7 +252,7 @@ class Predictor(BasePredictor):
         )
     ) -> list[Path]:
         """Run a single prediction on the model"""
-        print("Running prediction")
+        print("[~] Run prediction")
         start_time = time.time()
         
         # checkpoint name changed bc hashing is deactivated so name is corrected here to old name to avoid breaking api calls
@@ -305,7 +305,7 @@ class Predictor(BasePredictor):
             binary_image_data_full_image = binary_image_data
             cropped_hand_img, hand_coords = detect_and_crop_hand_from_binary(binary_image_data_full_image)
             if cropped_hand_img is not None:
-                print("Hands detected")
+                # print("Hands detected")
                 _, buffer = cv2.imencode('.jpg', cropped_hand_img)
                 binary_image_data = buffer.tobytes()
 
@@ -313,7 +313,7 @@ class Predictor(BasePredictor):
                 cropped_hand_img_pil = Image.fromarray(cropped_hand_img_rgb)
     
             else:
-                print("No hands detected")
+                # print("No hands detected")
                 return
 
         base64_encoded_data = base64.b64encode(binary_image_data)
@@ -322,12 +322,12 @@ class Predictor(BasePredictor):
         multipliers = [scale_factor]
         if scale_factor > 2:
             multipliers = self.calc_scale_factors(scale_factor)
-            print("Upscale your image " + str(len(multipliers)) + " times")
+            # print("Upscale your image " + str(len(multipliers)) + " times")
         
         first_iteration = True
 
         for multiplier in multipliers:
-            print("Upscaling with scale_factor: ", multiplier)
+            # print("Upscaling with scale_factor: ", multiplier)
             
             if not first_iteration:
                 creativity = creativity * 0.8
@@ -459,7 +459,7 @@ class Predictor(BasePredictor):
 
         if custom_sd_model:
             os.remove(path_to_custom_checkpoint)
-            print(f"Custom checkpoint {path_to_custom_checkpoint} has been removed.")
+            # print(f"Custom checkpoint {path_to_custom_checkpoint} has been removed.")
 
-        print(f"Prediction took {round(time.time() - start_time,2)} seconds")
+        print(f"[~] Prediction takes {round(time.time() - start_time,2)} seconds")
         return outputs
