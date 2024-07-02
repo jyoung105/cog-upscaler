@@ -1,3 +1,3 @@
-# Cog Implementation of ControlNet Tile 
+# Upscaler
 
-This is an implementation of the [Diffusers ControlNet](https://huggingface.co/blog/controlnet) as a Cog model. [Cog](https://github.com/replicate/cog) packages machine learning models as standard containers.
+There are several upscale options to provide more flexibility and better image quality.
