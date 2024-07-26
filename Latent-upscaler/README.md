@@ -7,3 +7,4 @@
 - https://huggingface.co/stabilityai/stable-diffusion-x4-upscaler
 
 - Add latent upscale algorithm
+- Use different model for each steps
