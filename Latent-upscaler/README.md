@@ -9,3 +9,4 @@
 - Add latent upscale algorithm
 - Use different model for each steps
 - Set denoising step on the trajectory
+- Check possibility of inputs, images
