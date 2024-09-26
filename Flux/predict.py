@@ -61,7 +61,7 @@ class Predictor(BasePredictor):
         self.load_flux()
 
 
-    def load_sdxl(self):
+    def load_flux(self):
         print("[~] Setup pipeline")
         # 1. Setup pipeline
         self.controlnet = FluxControlNetModel.from_pretrained(
