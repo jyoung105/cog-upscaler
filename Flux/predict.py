@@ -198,15 +198,8 @@ class Predictor(BasePredictor):
         ),
         upscale_factor: int = Input(
             description="Scale how much you want to upscale an image.",
-            default=1024,
-            ge=1,
-            le=2048,
-        ),
-        num_images: int = Input(
-            description="Number of outputs.",
-            default=1,
-            ge=1,
-            le=4,
+            default=2,
+            choices=[2, 4],
         ),
         num_images: int = Input(
             description="Number of outputs.",
