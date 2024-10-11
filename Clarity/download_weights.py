@@ -43,6 +43,11 @@ download_file(
     "models/Stable-diffusion",
     "epicrealism_naturalSinRC1VAE.safetensors"
 )
+download_file(
+    "https://huggingface.co/roktimsardar123/majicMIX-realistic-7/resolve/main/majicmixRealistic_v7.safetensors?download=true",
+    "models/Stable-diffusion",
+    "majicmixRealistic_v7.safetensors"
+)
 
 # Upscaler Model
 download_file(

@@ -71,7 +71,7 @@ class Predictor(BasePredictor):
 
         payload = {
            "override_settings": {
-                "sd_model_checkpoint": "juggernaut_reborn.safetensors",
+                "sd_model_checkpoint": "majicmixRealistic_v7.safetensors",
                 "sd_vae": "vae-ft-mse-840000-ema-pruned.safetensors",
                  "CLIP_stop_at_last_layers": 1,
             },
@@ -189,19 +189,25 @@ class Predictor(BasePredictor):
     def predict(
         self,
         image: Path = Input(description="input image"),
-        prompt: str = Input(description="Prompt", default="masterpiece, best quality, highres, <lora:more_details:0.5> <lora:SDXLrender_v2.0:1>"),
-        negative_prompt: str = Input(description="Negative Prompt", default="(worst quality, low quality, normal quality:2) JuggernautNegative-neg"),
+        prompt: str = Input(description="Prompt", default="masterpiece, best quality, highres, <lora:more_details:0.5>"),
+        negative_prompt: str = Input(description="Negative Prompt", default="(worst quality, low quality, normal quality:2)"),
         scale_factor: float = Input(
             description="Scale factor", default=2
         ),
         dynamic: float = Input(
-            description="HDR, try from 3 - 9", ge=1, le=50, default=6
+            description="HDR, try from 3 - 9", ge=0, le=20, default=4
         ),
         creativity: float = Input(
-            description="Creativity, try from 0.3 - 0.9", ge=0, le=1, default=0.35
+            description="Creativity, try from 0.3 - 0.9", ge=0, le=1, default=0.2
         ),
         resemblance: float = Input(
-            description="Resemblance, try from 0.3 - 1.6", ge=0, le=3, default=0.6
+            description="Resemblance, try from 0.3 - 1.6", ge=0, le=3, default=0.9
+        ),
+        guidance_start: float = Input(
+            description="guidance_start", ge=0, le=1, default=0.0
+        ),
+        guidance_end: float = Input(
+            description="guidance_end", ge=0, le=1, default=1.0
         ),
         tiling_width: int = Input(
             description="Fractality, set lower tile width for a high Fractality",
@@ -215,19 +221,19 @@ class Predictor(BasePredictor):
         ),
         sd_model: str = Input(
             description="Stable Diffusion model checkpoint",
-            choices=['epicrealism_naturalSinRC1VAE.safetensors [84d76a0328]', 'juggernaut_reborn.safetensors [338b85bc4f]', 'flat2DAnimerge_v45Sharp.safetensors'],
-            default="juggernaut_reborn.safetensors [338b85bc4f]",
+            choices=['majicmixRealistic_v7.safetensors', 'epicrealism_naturalSinRC1VAE.safetensors', 'juggernaut_reborn.safetensors', 'flat2DAnimerge_v45Sharp.safetensors'],
+            default="majicmixRealistic_v7.safetensors",
         ),
         scheduler: str = Input(
             description="scheduler",
             choices=['DPM++ 2M Karras', 'DPM++ SDE Karras', 'DPM++ 2M SDE Exponential', 'DPM++ 2M SDE Karras', 'Euler a', 'Euler', 'LMS', 'Heun', 'DPM2', 'DPM2 a', 'DPM++ 2S a', 'DPM++ 2M', 'DPM++ SDE', 'DPM++ 2M SDE', 'DPM++ 2M SDE Heun', 'DPM++ 2M SDE Heun Karras', 'DPM++ 2M SDE Heun Exponential', 'DPM++ 3M SDE', 'DPM++ 3M SDE Karras', 'DPM++ 3M SDE Exponential', 'DPM fast', 'DPM adaptive', 'LMS Karras', 'DPM2 Karras', 'DPM2 a Karras', 'DPM++ 2S a Karras', 'Restart', 'DDIM', 'PLMS', 'UniPC'],
-            default="DPM++ 3M SDE Karras",
+            default="DPM++ SDE Karras",
         ),
         num_inference_steps: int = Input(
             description="Number of denoising steps", ge=1, le=100, default=18
         ),
         seed: int = Input(
-            description="Random seed. Leave blank to randomize the seed", default=1337
+            description="Random seed. Leave blank to randomize the seed", default=2024
         ),
         downscaling: bool = Input(
             description="Downscale the image before upscaling. Can improve quality and speed for images with high resolution but lower quality", default=False
@@ -270,9 +276,11 @@ class Predictor(BasePredictor):
         outputs = [] ## init at the start so we can grab the initial image wrangling for debugging
 
         # checkpoint name changed bc hashing is deactivated so name is corrected here to old name to avoid breaking api calls
-        if sd_model == "epicrealism_naturalSinRC1VAE.safetensors [84d76a0328]":
+        if sd_model == "majicmixRealistic_v7.safetensors":
+            sd_model = "majicmixRealistic_v7.safetensors"
+        if sd_model == "epicrealism_naturalSinRC1VAE.safetensors":
             sd_model = "epicrealism_naturalSinRC1VAE.safetensors"
-        if sd_model == "juggernaut_reborn.safetensors [338b85bc4f]":
+        if sd_model == "juggernaut_reborn.safetensors":
             sd_model = "juggernaut_reborn.safetensors"
 
         if lora_links:
@@ -371,7 +379,7 @@ class Predictor(BasePredictor):
 
             payload = get_clarity_upscaler_payload(sd_model, tiling_width, tiling_height, multiplier, base64_image,
                                 resemblance, prompt, negative_prompt, num_inference_steps, dynamic, seed, scheduler,
-                                creativity)
+                                creativity, guidance_start, guidance_end)
 
             req = self.StableDiffusionImg2ImgProcessingAPI(**payload)
             resp = self.api.img2imgapi(req)
@@ -602,6 +610,8 @@ def get_clarity_upscaler_payload(sd_model,
                                 seed,
                                 scheduler,
                                 creativity,
+                                guidance_start, 
+                                guidance_end,
                                 seamfix_mask=None):
     if seamfix_mask:
         multiplier = 1.0 ## set the multiplier to 1 as we're not upscaling in this round.
@@ -614,7 +624,7 @@ def get_clarity_upscaler_payload(sd_model,
     alwayson_scripts = {
         "Tiled Diffusion": {"args": get_tiled_diffusion_args(tiling_width, tiling_height, multiplier)},
         "Tiled VAE": {"args": get_tiled_vae_args()},
-        "controlnet": {"args": get_controlnet_args(base64_image, resemblance)}
+        "controlnet": {"args": get_controlnet_args(base64_image, resemblance, guidance_start, guidance_end)}
     }
 
     if seamfix_mask:
@@ -692,7 +702,7 @@ def get_tiled_vae_args():
     ]
     return arg_list
 
-def get_controlnet_args(base64_image, resemblance):
+def get_controlnet_args(base64_image, resemblance, guidance_start, guidance_end):
     arg_dict = {
         "enabled": True,
         "module": "tile_resample",
@@ -702,8 +712,8 @@ def get_controlnet_args(base64_image, resemblance):
         "resize_mode": 1,
         "lowvram": False,
         "downsample": 1.0,
-        "guidance_start": 0.0,
-        "guidance_end": 1.0,
+        "guidance_start": guidance_start,
+        "guidance_end": guidance_end,
         "control_mode": 1,
         "pixel_perfect": True,
         "threshold_a": 1,

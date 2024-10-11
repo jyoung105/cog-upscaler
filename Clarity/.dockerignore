@@ -1,27 +1,6 @@
 # The .dockerignore file excludes files from the container build process.
+#
 # https://docs.docker.com/engine/reference/builder/#dockerignore-file
-
-# Replicate
-checkpoints/
-safetys/
-*.mp4
-*.pth
-*.pt
-*.bin
-*.ckpt
-*.onnx
-*.tar
-*.tar.gz
-*.h5
-*.pb
-*.caffemodel
-*.weights
-*.tar
-*.jpg
-*.jpeg
-*.png
-*.webp
-.vscode
 
 # Exclude Git files
 .git
@@ -36,3 +15,5 @@ __pycache__
 
 # Exclude Python virtual environment
 /venv
+
+example.gif
