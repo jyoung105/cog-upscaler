@@ -27,7 +27,7 @@ build:
     - "bitsandbytes==0.44.1"
     - "gguf==0.10.0"
     - "sentencepiece==0.2.0"
-    - "protobuf==28.1"
+    - "protobuf"
     - "GPUtil"
     
   run:
