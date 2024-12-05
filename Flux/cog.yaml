@@ -1,6 +1,7 @@
 # Configuration for Cog ⚙️
 # Reference: https://github.com/replicate/cog/blob/main/docs/yaml.md
 
+image: "r8.im/smoretalk/flux-upscaler"
 build:
   gpu: true
   cuda: "12.4"
@@ -8,23 +9,28 @@ build:
     - "libgl1-mesa-glx"
     - "libglib2.0-0"
     - "wget"
+    - "git"
   python_version: "3.12"
   python_packages:
     - "omegaconf==2.3.0"
     - "einops==0.8.0"
     - "torch==2.4.1"
     - "torchvision==0.19.1"
-    - "transformers==4.44.2"
-    - "git+https://github.com/huggingface/diffusers.git"
-    - "accelerate==0.34.1"
+    - "torchsde==0.2.6"
+    - "transformers==4.46.3"
+    - "diffusers==0.31.0"
+    - "accelerate==1.1.0"
     - "safetensors==0.4.5"
-    - "huggingface_hub==0.24.6"
+    - "huggingface_hub==0.26.3"
     - "hf_transfer==0.1.8"
-    - "peft==0.12.0"
-    - "sentencepiece"
-    - "protobuf"
+    - "peft==0.13.2"
+    - "bitsandbytes==0.44.1"
+    - "gguf==0.10.0"
+    - "sentencepiece==0.2.0"
+    - "protobuf==28.1"
+    - "GPUtil"
     
   run:
     - curl -o /usr/local/bin/pget -L "https://github.com/replicate/pget/releases/latest/download/pget_$(uname -s)_$(uname -m)" && chmod +x /usr/local/bin/pget
 
-predict: "predict.py:Predictor"
+predict: "ComfyUI/predict.py:Predictor"
