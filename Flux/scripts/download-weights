@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+# Download model
+HF_HUB_ENABLE_HF_TRANSFER=1 huggingface-cli download martintomov/Hyper-FLUX.1-dev-gguf hyper-flux-8step-Q4_0.gguf --local-dir ./ComfyUI/models/unet --local-dir-use-symlinks False
+
+# Download VAE
+HF_HUB_ENABLE_HF_TRANSFER=1 huggingface-cli download camenduru/FLUX.1-dev ae.sft --local-dir ./ComfyUI/models/vae --local-dir-use-symlinks False
+
+# Download text encoders
+HF_HUB_ENABLE_HF_TRANSFER=1 huggingface-cli download comfyanonymous/flux_text_encoders clip_l.safetensors --local-dir ./ComfyUI/models/clip --local-dir-use-symlinks False
+HF_HUB_ENABLE_HF_TRANSFER=1 huggingface-cli download comfyanonymous/flux_text_encoders t5xxl_fp8_e4m3fn.safetensors --local-dir ./ComfyUI/models/clip --local-dir-use-symlinks False
+
+# Download upscaler
+HF_HUB_ENABLE_HF_TRANSFER=1 huggingface-cli download uwg/upscaler 4x_NMKD-Superscale-SP_178000_G.pth --local-dir ./ComfyUI/models/upscale_models --local-dir-use-symlinks False
