@@ -1,4 +1,0 @@
-[submodule "ComfyUI"]
-	path = Flux/ComfyUI
-	url = https://github.com/comfyanonymous/ComfyUI.git
-	branch = main
