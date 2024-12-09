@@ -10,6 +10,7 @@ from typing import List
 
 # Third-party library imports
 import torch
+import torchvision
 from torchvision.transforms.functional import to_pil_image
 import numpy as np
 from PIL import Image
@@ -21,7 +22,6 @@ from safetensors.torch import load_file
 
 import GPUtil
 
-os.chdir("/content/ComfyUI")
 import nodes
 from nodes import NODE_CLASS_MAPPINGS
 
@@ -106,31 +106,32 @@ class Predictor(BasePredictor):
 
     def load_flux(self):
         print("[~] Setup pipeline")
-        self.DualCLIPLoader = NODE_CLASS_MAPPINGS["DualCLIPLoader"]()
+        self.DualCLIPLoader = nodes.NODE_CLASS_MAPPINGS["DualCLIPLoader"]()
+        self.UNETLoader = nodes.NODE_CLASS_MAPPINGS["UNETLoader"]()
         self.RandomNoise = nodes_custom_sampler.NODE_CLASS_MAPPINGS["RandomNoise"]()
         self.BasicGuider = nodes_custom_sampler.NODE_CLASS_MAPPINGS["BasicGuider"]()
         self.KSamplerSelect = nodes_custom_sampler.NODE_CLASS_MAPPINGS["KSamplerSelect"]()
         self.BasicScheduler = nodes_custom_sampler.NODE_CLASS_MAPPINGS["BasicScheduler"]()
         self.SamplerCustomAdvanced = nodes_custom_sampler.NODE_CLASS_MAPPINGS["SamplerCustomAdvanced"]()
         self.FluxGuidance = nodes_flux.NODE_CLASS_MAPPINGS["FluxGuidance"]()
+        self.ConditioningZeroOut = nodes.NODE_CLASS_MAPPINGS["ConditioningZeroOut"]()
         self.ModelSamplingFlux = nodes_model_advanced.NODE_CLASS_MAPPINGS["ModelSamplingFlux"]()
-        self.VAELoader = NODE_CLASS_MAPPINGS["VAELoader"]()
-        self.VAEDecode = NODE_CLASS_MAPPINGS["VAEDecode"]()
-        self.EmptyLatentImage = NODE_CLASS_MAPPINGS["EmptyLatentImage"]()
-        self.LoadImage = NODE_CLASS_MAPPINGS["LoadImage"]()
+        self.VAELoader = nodes.NODE_CLASS_MAPPINGS["VAELoader"]()
+        self.VAEDecode = nodes.NODE_CLASS_MAPPINGS["VAEDecode"]()
+        self.EmptyLatentImage = nodes.NODE_CLASS_MAPPINGS["EmptyLatentImage"]()
+        self.LoadImage = nodes.NODE_CLASS_MAPPINGS["LoadImage"]()
         self.UpscaleModelLoader = nodes_upscale_model.NODE_CLASS_MAPPINGS["UpscaleModelLoader"]()
         
-        from quantized.nodes import NODE_CLASS_MAPPINGS
-        self.UNETLoader = NODE_CLASS_MAPPINGS["UnetLoaderGGUF"]()
+        # from custom_nodes.quantized.nodes import NODE_CLASS_MAPPINGS
+        # self.UNETLoader = NODE_CLASS_MAPPINGS["UnetLoaderGGUF"]()
         
-        from upscale.nodes import NODE_CLASS_MAPPINGS
+        from custom_nodes.upscaled.nodes import NODE_CLASS_MAPPINGS
         self.UltimateSDUpscale = NODE_CLASS_MAPPINGS["UltimateSDUpscale"]()
         
-        with torch.inference_mode():
-            self.clip = self.DualCLIPLoader.load_clip("t5xxl_fp8_e4m3fn.safetensors", "clip_l.safetensors", "flux")[0]
-            self.unet = self.UNETLoader.load_unet("hyper-flux-8step-Q4_0.gguf")[0]
-            self.vae = self.VAELoader.load_vae("ae.sft")[0]
-            self.upscaler = self.UpscaleModelLoader.load_model("4x_NMKD-Superscale-SP_178000_G.pth")[0]
+        self.clip = self.DualCLIPLoader.load_clip("t5xxl_fp8_e4m3fn.safetensors", "clip_l.safetensors", "flux")[0]
+        self.unet = self.UNETLoader.load_unet("flux1-dev-fp8.safetensors", "fp8_e4m3fn")[0]
+        self.vae = self.VAELoader.load_vae("ae.sft")[0]
+        self.upscale_model = self.UpscaleModelLoader.load_model("ESRGAN/4x_NMKD-Superscale-SP_178000_G.pth")[0]
 
 
     @torch.inference_mode()
@@ -145,25 +146,24 @@ class Predictor(BasePredictor):
         seed,
     ):
         flush()
-        print(f"[Debug] Prompt: {prompt}")
-        print(f"[Debug] Seed: {str(seed)}")
+        # print(f"[Debug] Prompt: {prompt}")
+        # print(f"[Debug] Seed: {str(seed)}")
         
         # Prompt
         cond, pooled = self.clip.encode_from_tokens(self.clip.tokenize(prompt), return_pooled=True)
         cond = [[cond, {"pooled_output": pooled}]]
-        sampler = self.ModelSamplingFlux.patch(self.unet, 1.15, 0.5, width, height)[0] # model
         
         # Image
-        init_image = self.LoadImage.load_image(image)[0] # image
-        width, height = image.size
+        init_image = self.LoadImage.load_image(str(image))[0] # image
+        width, height = Image.open(str(image)).size
         tile_width = width * upscale_factor / 2 + 32
         tile_height = height * upscale_factor / 2 + 32
+
+        sampler = self.ModelSamplingFlux.patch(self.unet, 0.5, 0.3, width, height)[0] # model
         
         # Guidance
         guider = self.FluxGuidance.append(cond, guidance_scale)[0] # positive
         neg_guider = self.ConditioningZeroOut.zero_out(cond)[0] # negative
-        
-        model_management.soft_empty_cache()
         
         upscale_image = self.UltimateSDUpscale.upscale(
             image=init_image,
@@ -171,20 +171,20 @@ class Predictor(BasePredictor):
             positive=guider,
             negative=neg_guider,
             vae=self.vae,
+            upscale_model=self.upscale_model,
             upscale_by=upscale_factor,
             seed=seed,
             steps=num_steps,
-            cfg=1.0,
+            cfg=guidance_scale,
             sampler_name="dpmpp_2m",
             scheduler="beta",
             denoise=denoise_scale,
-            upscale_model=self.upscaler,
             mode_type="Linear", 
             tile_width=tile_width,
             tile_height=tile_height,
             mask_blur=16, 
             tile_padding=32,
-            seam_fix_mode=None, 
+            seam_fix_mode="None", 
             seam_fix_denoise=0.25, 
             seam_fix_mask_blur=16,
             seam_fix_width=64, 
@@ -192,7 +192,12 @@ class Predictor(BasePredictor):
             force_uniform_tiles=True, 
             tiled_decode=True
         )
-        image_list = [to_pil_image(upscale_image[0])]
+        
+        topilimage = torchvision.transforms.ToPILImage()
+        img_pil = topilimage(upscale_image[0][0].permute(2, 0, 1))
+        
+        image_list = [img_pil]
+        # img_pil.save("./test_result.png")
         
         # decoded = self.VAEDecode.decode(self.vae, sample)[0].detach()
         # image_list = [Image.fromarray(np.array(decoded*255, dtype=np.uint8)[0])]
@@ -213,24 +218,23 @@ class Predictor(BasePredictor):
         ),
         upscale_factor: float = Input(
             description="Scale how much you want to upscale an image.",
-            default=2.0,
-            choices=[2.0, 4.0],
+            default=4.0,
         ),
         steps: int = Input(
             description="Number of denoising steps.",
-            default=8,
+            default=10,
             ge=1,
             le=30,
         ),
         guidance_scale: float = Input(
             description="Scale for classifier-free guidance.",
-            default=3.5,
+            default=1.0,
             ge=0,
             le=20,
         ),
         denoise_scale: float = Input(
             description="Scale for denoising.",
-            default=0.2,
+            default=0.25,
             ge=0,
             le=1,
         ),
@@ -247,8 +251,8 @@ class Predictor(BasePredictor):
             return msg
 
         else:
-            print(f"DEVICE: {DEVICE}")
-            print(f"DTYPE: {DTYPE}")
+            # print(f"DEVICE: {DEVICE}")
+            # print(f"DTYPE: {DTYPE}")
             
             # If no seed is provided, generate a random seed
             if seed is None:
